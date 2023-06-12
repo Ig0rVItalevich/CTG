@@ -4,5 +4,7 @@ venv/
 __pycache__/
 .pytest_cache/
 .coverage
+
 /graphs
 comparison.json
+ctg.log

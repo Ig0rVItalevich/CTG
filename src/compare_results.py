@@ -14,15 +14,15 @@ def compare_results(expected_result: dict, calculated_result: dict) -> dict:
             number_of_matches += 1
 
         matches[key] = {
-            "expected": expected_result[key],
-            "calculeted": calculated_result[key],
+            'expected': expected_result[key],
+            'calculeted': calculated_result[key],
         }
 
-    print("Процент совпадений: {:.2f}".format(number_of_matches / count_records * 100))
+    print(f'Процент совпадений: {number_of_matches / count_records * 100:.2f}')
 
-    with open("comparison.json", "w") as write_file:
+    with open('comparison.json', 'w') as write_file:
         json.dump(
-            matches, write_file, indent=4, ensure_ascii=False, separators=(",", ": ")
+            matches, write_file, indent=4, ensure_ascii=False, separators=(',', ': '),
         )
 
-    logger.info("Comparison result file created")
+    logger.info('Comparison result file created')

@@ -1,11 +1,11 @@
-from abc import ABC, abstractmethod
-import queue
-import os
 import multiprocessing
+import os
+import queue
+from abc import ABC, abstractmethod
 from math import ceil
 
-from src.reader import BaseReader
 from src.logger import logger
+from src.reader import BaseReader
 
 
 class CTGBaseAnalyzer(ABC):
@@ -32,8 +32,8 @@ class CTGBaseAnalyzer(ABC):
                 args=[
                     files[
                         border
-                        * process_files : min(files_count, (border + 1) * process_files)
-                    ]
+                        * process_files: min(files_count, (border + 1) * process_files)
+                    ],
                 ],
                 daemon=True,
             )
@@ -42,13 +42,13 @@ class CTGBaseAnalyzer(ABC):
 
         for process in processes:
             process.start()
-        logger.info("File reading processes started")
+        logger.info('File reading processes started')
 
         for process in processes:
             process.join()
-        logger.info("File read processes have finished executing")
+        logger.info('File read processes have finished executing')
 
-        self.data_queue.put({"file": "end_of_files"})
+        self.data_queue.put({'file': 'end_of_files'})
 
     def read_file(self, files):
         reader = self.reader()
@@ -57,51 +57,57 @@ class CTGBaseAnalyzer(ABC):
             _file = os.path.join(self.directory, file)
 
             if not os.path.isfile(_file):
-                logger.warning(f"{_file} is not а file")
+                logger.warning('%s is not а file', _file)
                 break
 
             data = reader.read(_file)
 
             if data is not None:
-                self.data_queue.put({"file": file, "ctg": data})
+                self.data_queue.put({'file': file, 'ctg': data})
             else:
-                logger.warning(f"Data of file: {_file} is None")
+                logger.warning('Data of file: %s is None', _file)
 
-            logger.debug(f"File: {_file} read")
+            logger.debug('File: %s read', _file)
 
     def work(self):
         parent_conn, child_conn = multiprocessing.Pipe()
 
         processes = [
-            multiprocessing.Process(target=self.analyze, args=[child_conn], daemon=True)
+            multiprocessing.Process(
+                target=self.analyze,
+                args=[
+                    child_conn,
+                ],
+                daemon=True,
+            )
             for _ in range(self.processes_count)
         ]
 
         for process in processes:
             process.start()
-        logger.info("Working processes started")
+        logger.info('Working processes started')
 
         self.filling_queue()
 
         for process in processes:
             process.join()
-        logger.info("Working processes have finished executing")
+        logger.info('Working processes have finished executing')
 
         result_dict = {}
 
         while True:
             result = parent_conn.recv()
-            if result == "end_of_files":
+            if result == 'end_of_files':
                 logger.debug("'end_of_files' line read from pipe")
                 break
 
-            result = result.split(":")
+            result = result.split(':')
             result_dict[result[0]] = result[1]
 
         return result_dict
 
     @abstractmethod
-    def analyze(self):
+    def analyze(self, pipe: multiprocessing.Pipe):
         pass
 
 
@@ -128,16 +134,16 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
                 logger.warning("Received an exception 'queue.Empty'")
                 continue
 
-            if data["file"] == "end_of_files":
+            if data['file'] == 'end_of_files':
                 logger.info("'end_of_files' line read from queue")
 
                 self.event.set()
-                logger.info("self.event is set")
+                logger.info('self.event is set')
 
-                pipe.send("end_of_files")
+                pipe.send('end_of_files')
 
                 break
 
-            logger.debug(f"processed {data['file']=}")
+            logger.debug('processed %s', data['file'])
 
             pipe.send(f"{data['file']}:хорошее")
