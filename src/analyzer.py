@@ -9,6 +9,7 @@ from src.logger import logger
 from src.reader import BaseReader
 
 
+# Базовый анализатор
 class CTGBaseAnalyzer(ABC):
     def __init__(
         self,
@@ -22,6 +23,7 @@ class CTGBaseAnalyzer(ABC):
         self.data_queue = multiprocessing.Queue()
         self.event = multiprocessing.Event()
 
+    # Заполнение очереди задач
     def filling_queue(self):
         files = os.listdir(self.directory)
         files_count = len(files)
@@ -33,7 +35,7 @@ class CTGBaseAnalyzer(ABC):
                 args=[
                     files[
                         border
-                        * process_files: min(files_count, (border + 1) * process_files)
+                        * process_files : min(files_count, (border + 1) * process_files)
                     ],
                 ],
                 daemon=True,
@@ -43,14 +45,15 @@ class CTGBaseAnalyzer(ABC):
 
         for process in processes:
             process.start()
-        logger.info('File reading processes started')
+        logger.info("File reading processes started")
 
         for process in processes:
             process.join()
-        logger.info('File read processes have finished executing')
+        logger.info("File read processes have finished executing")
 
-        self.data_queue.put({'file': 'end_of_files'})
+        self.data_queue.put({"file": "end_of_files"})
 
+    # Считывание данных с одного файла
     def read_file(self, files):
         reader = self.reader()
 
@@ -58,18 +61,19 @@ class CTGBaseAnalyzer(ABC):
             _file = os.path.join(self.directory, file)
 
             if not os.path.isfile(_file):
-                logger.warning('%s is not а file', _file)
+                logger.warning("%s is not а file", _file)
                 break
 
             data = reader.read(_file)
 
             if data is not None:
-                self.data_queue.put({'file': file, 'ctg': data})
+                self.data_queue.put({"file": file, "ctg": data})
             else:
-                logger.warning('Data of file: %s is None', _file)
+                logger.warning("Data of file: %s is None", _file)
 
-            logger.debug('File: %s read', _file)
+            logger.debug("File: %s read", _file)
 
+    # Запуск обработки данных
     def work(self):
         parent_conn, child_conn = multiprocessing.Pipe()
 
@@ -88,13 +92,13 @@ class CTGBaseAnalyzer(ABC):
 
         for process in processes:
             process.start()
-        logger.info('Working processes started')
+        logger.info("Working processes started")
 
         self.filling_queue()
 
         for process in processes:
             process.join()
-        logger.info('Working processes have finished executing')
+        logger.info("Working processes have finished executing")
 
         result_dict = {}
 
@@ -102,29 +106,31 @@ class CTGBaseAnalyzer(ABC):
 
         while True:
             if count_end_processes == self.processes_count:
-                logger.info('All processes completed')
+                logger.info("All processes completed")
                 break
 
             result = parent_conn.recv()
 
-            if result == 'end_process':
+            if result == "end_process":
                 count_end_processes += 1
             else:
-                result = result.split(':')
+                result = result.split(":")
                 result_dict[result[0]] = result[1]
 
         end = datetime.datetime.now()
         print(
-            f'Время обработки одного файла {((end - start) / 100).microseconds} ms.',
+            f"Время обработки одного файла {((end - start) / 100).microseconds} ms.",
         )
 
         return result_dict
 
+    # Анализ КТГ
     @abstractmethod
     def analyze(self, pipe: multiprocessing.Pipe):
         pass
 
 
+# Анализатор по шкале Фишера
 class CTGFisherAnalyzer(CTGBaseAnalyzer):
     def __init__(
         self,
@@ -143,21 +149,23 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
         self.accelerations = None
         self.decelerations = None
 
+    # Очистка КТГ от погрешности измерений
     def clear_ctg(self):
         error_data = self.ctg_data.loc[
-            ((self.ctg_data['y'] < 80) | (self.ctg_data['y'] > 180))
+            ((self.ctg_data["y"] < 80) | (self.ctg_data["y"] > 180))
         ]
         self.ctg_data.drop(error_data.index)
 
+    # Вычисление базального ритма и амплитуды
     def get_basal_rhythm_and_amplitude(self):
-        result = {'start': 0, 'end': 0, 'dist': 0, 'mean': 0, 'amplitude': 0}
-        _min, _max = self.ctg_data['y'][0], self.ctg_data['y'][0]
+        result = {"start": 0, "end": 0, "dist": 0, "mean": 0, "amplitude": 0}
+        _min, _max = self.ctg_data["y"][0], self.ctg_data["y"][0]
         dist = 1
         start, end = 0, 0
 
         sum_values = 0
 
-        for idx, curr in enumerate(self.ctg_data['y']):
+        for idx, curr in enumerate(self.ctg_data["y"]):
             tmp_min, tmp_max = _min, _max
             if curr < _min:
                 tmp_min = curr
@@ -170,13 +178,13 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
                 end = idx
                 _min, _max = tmp_min, tmp_max
             else:
-                if result['dist'] < dist:
+                if result["dist"] < dist:
                     result = {
-                        'start': start,
-                        'end': end,
-                        'dist': dist,
-                        'mean': sum_values / dist,
-                        'amplitude': _max - _min,
+                        "start": start,
+                        "end": end,
+                        "dist": dist,
+                        "mean": sum_values / dist,
+                        "amplitude": _max - _min,
                     }
 
                 _min, _max = curr, curr
@@ -184,11 +192,12 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
                 start = idx
                 sum_values = 0
 
-        self.basal_area = (result['start'], result['end'])
+        self.basal_area = (result["start"], result["end"])
 
-        self.basal_rhythm = result['mean']
-        self.amplitude = result['amplitude']
+        self.basal_rhythm = result["mean"]
+        self.amplitude = result["amplitude"]
 
+    # Вычисление вариабельности
     def get_variability(self):
         start, end = self.basal_area
         end = min(start + 180, end)
@@ -198,7 +207,7 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
 
             return
 
-        data = self.ctg_data['y'][start:end]
+        data = self.ctg_data["y"][start:end]
 
         unique_seq = [data.iloc[0]]
 
@@ -223,8 +232,9 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
 
         self.variability = count
 
+    # Вычисление акцелераций
     def get_acceleration(self):
-        bool_array = self.ctg_data['y'] > self.basal_rhythm + 20
+        bool_array = self.ctg_data["y"] > self.basal_rhythm + 20
 
         pred = False
         pred_idx = -1
@@ -250,8 +260,9 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
 
         self.accelerations = count
 
+    # Вычисление децелераций
     def get_decelerations(self):
-        bool_array = self.ctg_data['y'] < self.basal_rhythm - 20
+        bool_array = self.ctg_data["y"] < self.basal_rhythm - 20
 
         pred = False
         pred_idx = -1
@@ -277,6 +288,7 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
 
         self.decelerations = count
 
+    # Оценка полученных значений
     def performance_evaluation(self) -> str:
         basal_rhytm_grade = 0
         amplitude_grade = 0
@@ -321,10 +333,11 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
             )
             < 8
         ):
-            return 'плохое'
+            return "плохое"
 
-        return 'хорошее'
+        return "хорошее"
 
+    # Анализ КТГ
     def analyze(self, pipe: multiprocessing.Pipe):
         while not self.event.is_set():
             try:
@@ -333,17 +346,17 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
                 logger.warning("Received an exception 'queue.Empty'")
                 continue
 
-            if data['file'] == 'end_of_files':
+            if data["file"] == "end_of_files":
                 logger.info("'end_of_files' line read from queue")
 
                 self.event.set()
-                logger.info('self.event is set')
+                logger.info("self.event is set")
 
-                pipe.send('end_process')
+                pipe.send("end_process")
 
                 break
 
-            self.ctg_data = data['ctg']
+            self.ctg_data = data["ctg"]
 
             self.clear_ctg()
 
@@ -356,6 +369,6 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
 
             pipe.send(f"{data['file']}:{result}")
 
-            logger.debug('processed %s', data['file'])
+            logger.debug("processed %s", data["file"])
         else:
-            pipe.send('end_process')
+            pipe.send("end_process")
