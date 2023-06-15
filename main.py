@@ -10,7 +10,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-d', '--dir', default='./ctg_files')
-    parser.add_argument('-t', '--threads', default=8)
+    parser.add_argument('-p', '--processes', default=8)
     parser.add_argument('-visualize', action='store_const', const=True)
 
     args = parser.parse_args()
@@ -20,7 +20,7 @@ if __name__ == '__main__':
             directory=args.dir,
             reader=DictReader,
             processes_count=int(
-                args.threads,
+                args.processes,
             ),
         )
 
@@ -30,7 +30,7 @@ if __name__ == '__main__':
             directory=args.dir,
             reader=DictReader,
             processes_count=int(
-                args.threads,
+                args.processes,
             ),
         )
 

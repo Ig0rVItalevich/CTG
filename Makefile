@@ -4,7 +4,7 @@ build:
 	pip install -r requirements.txt
 
 run:
-	python3 main.py -d ./ctg_files -t 8
+	python3 main.py -d ./ctg_files -p 8
 
 visualize:
-	python3 main.py -d ./ctg_files -t 8 -visualize
+	python3 main.py -d ./ctg_files -p 8 -visualize
