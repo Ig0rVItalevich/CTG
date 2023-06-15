@@ -4,6 +4,7 @@ import os
 import queue
 from abc import ABC, abstractmethod
 from math import ceil
+import numpy as np
 
 from src.logger import logger
 from src.reader import BaseReader
@@ -155,6 +156,8 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
         dist = 1
         start, end = 0, 0
 
+        sum_values = 0
+
         for idx, curr in enumerate(self.ctg_data["y"]):
             tmp_min, tmp_max = _min, _max
             if curr < _min:
@@ -163,6 +166,7 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
                 tmp_max = curr
 
             if tmp_max - tmp_min < 25:
+                sum_values += curr
                 dist += 1
                 end = idx
                 _min, _max = tmp_min, tmp_max
@@ -172,13 +176,14 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
                         "start": start,
                         "end": end,
                         "dist": dist,
-                        "mean": (_max + _min) / 2,
+                        "mean": sum_values / dist,
                         "amplitude": _max - _min,
                     }
 
                 _min, _max = curr, curr
                 dist = 1
                 start = idx
+                sum_values = 0
 
         self.basal_area = (result["start"], result["end"])
 
@@ -211,13 +216,16 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
             if (
                 unique_seq[idx] > unique_seq[idx - 1]
                 and unique_seq[idx] < unique_seq[idx + 1]
+            ) or (
+                unique_seq[idx] < unique_seq[idx - 1]
+                and unique_seq[idx] > unique_seq[idx + 1]
             ):
                 count += 1
 
         self.variability = count
 
     def get_acceleration(self):
-        bool_array = self.ctg_data["y"] > self.basal_rhythm + 15
+        bool_array = self.ctg_data["y"] > self.basal_rhythm + 20
 
         pred = False
         pred_idx = -1
@@ -244,7 +252,7 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
         self.accelerations = count
 
     def get_decelerations(self):
-        bool_array = self.ctg_data["y"] < self.basal_rhythm - 15
+        bool_array = self.ctg_data["y"] < self.basal_rhythm - 20
 
         pred = False
         pred_idx = -1
@@ -270,7 +278,7 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
 
         self.decelerations = count
 
-    def performance_evaluation(self) -> str:
+    def performance_evaluation(self, file) -> str:
         basal_rhytm_grade = 0
         amplitude_grade = 0
         variability_grade = 0
@@ -301,15 +309,6 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
             decelerations_grade = 2
         elif self.decelerations == 1:
             decelerations_grade = 1
-
-        # print(
-        #     file,
-        #     basal_rhytm_grade,
-        #     amplitude_grade,
-        #     variability_grade,
-        #     accelerations_grade,
-        #     decelerations_grade,
-        # )
 
         if (
             sum(
@@ -354,7 +353,7 @@ class CTGFisherAnalyzer(CTGBaseAnalyzer):
             self.get_acceleration()
             self.get_decelerations()
 
-            result = self.performance_evaluation()
+            result = self.performance_evaluation(data["file"])
 
             pipe.send(f"{data['file']}:{result}")
 
